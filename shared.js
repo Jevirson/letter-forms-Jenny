@@ -44,17 +44,17 @@ function getOtherSubmissions(name, course) {
   return getAllSubmissions().filter(e => buildKey(e.student_name, e.course) !== buildKey(name, course));
 }
 
-// ── Session helpers ──────────────────────────────────────────
+// ── Session helpers (localStorage so it survives tab close / reload) ─
 function getSession() {
-  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
 }
 
 function setSession(role, name, course) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ role, name: name || '', course: course || '' }));
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ role, name: name || '', course: course || '' }));
 }
 
 function clearSession() {
-  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
 }
 
 // ── Auth ─────────────────────────────────────────────────────
