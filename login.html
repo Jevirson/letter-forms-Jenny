@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farewell Ms. Jenny — Log In</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main class="page page--center">
+    <section class="card card--compact">
+      <div class="login-header">
+        <span class="portal-icon" id="roleIcon">✉️</span>
+        <span class="badge" id="roleLabel">Sign In</span>
+        <h1 class="title" style="margin-top:12px;">Welcome Back</h1>
+        <p class="subtitle" style="margin-bottom:0;">Sign in to continue to the farewell portal.</p>
+      </div>
+
+      <div>
+        <label class="label" for="username">Username</label>
+        <input class="input" id="username" name="username" type="text"
+          autocomplete="username" placeholder="Enter your username" required>
+
+        <label class="label" for="password" style="margin-top:16px;">Password</label>
+        <input class="input" id="password" name="password" type="password"
+          autocomplete="current-password" placeholder="Enter your password" required>
+
+        <button class="btn btn--full" id="loginBtn" style="margin-top:24px;">
+          Continue →
+        </button>
+      </div>
+
+      <div id="errorMsg" class="notice notice--error hidden"></div>
+
+      <div class="floral-deco" style="margin:24px 0 8px;">✦</div>
+      <p class="hint" style="text-align:center;">← Back to <a class="link" href="index.html">role selection</a></p>
+    </section>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    redirectIfLoggedIn();
+
+    const params = new URLSearchParams(location.search);
+    const role = params.get('role') || '';
+    const errorParam = params.get('error') || '';
+
+    const roleIcon  = document.getElementById('roleIcon');
+    const roleLabel = document.getElementById('roleLabel');
+    const usernameInput = document.getElementById('username');
+
+    if (role === 'student') {
+      roleIcon.textContent = '✏️';
+      roleLabel.textContent = 'Student Login';
+      usernameInput.value = 'student';
+    } else if (role === 'teacher') {
+      roleIcon.textContent = '👩‍🏫';
+      roleLabel.textContent = 'Teacher Login';
+      usernameInput.value = 'Jenny';
+    }
+
+    if (errorParam) showError(errorParam);
+
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', () => {
+      const username = usernameInput.value.trim();
+      const password = document.getElementById('password').value;
+      if (!username || !password) { showError('Please fill in both fields.'); return; }
+
+      const authedRole = authenticate(username, password);
+      if (!authedRole) { showError('Invalid username or password.'); return; }
+
+      if (authedRole === 'student') {
+        setSession('student', username, '');
+        redirectTo('home.html');
+      } else {
+        setSession('teacher', 'Jenny', '');
+        redirectTo('teacher.html');
+      }
+    });
+
+    // Allow Enter key
+    [usernameInput, document.getElementById('password')].forEach(el => {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginBtn').click(); });
+    });
+  </script>
+</body>
+</html>

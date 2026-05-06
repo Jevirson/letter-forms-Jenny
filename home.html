@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farewell Ms. Jenny — Home</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="top-nav">
+    <span class="nav-brand">💌 Farewell, Ms. Jenny</span>
+    <div class="nav-right">
+      <span class="nav-user" id="navUser"></span>
+      <a class="link" href="#" id="logoutBtn">Log Out</a>
+    </div>
+  </nav>
+
+  <main class="page">
+    <section class="card">
+
+      <!-- Home Hero -->
+      <div class="home-hero">
+        <span class="big-icon">🌸</span>
+        <h1>Hello, <span id="heroName">Student</span>!</h1>
+        <p class="subtitle">
+          Welcome to Ms. Jenny's farewell portal. Leave your heartfelt message<br>
+          or read what your classmates have written.
+        </p>
+      </div>
+
+      <!-- Action Cards -->
+      <div class="home-actions">
+        <button class="action-card action-card--write" id="writeBtn">
+          <span class="card-icon">✏️</span>
+          <span class="card-title">Write a Letter</span>
+          <span class="card-desc">Compose or edit your personal farewell message to Ms. Jenny</span>
+        </button>
+        <button class="action-card action-card--browse" id="browseBtn">
+          <span class="card-icon">📖</span>
+          <span class="card-title">Browse Letters</span>
+          <span class="card-desc">Read heartfelt notes from your fellow students</span>
+        </button>
+      </div>
+
+      <!-- My Letter Preview -->
+      <div id="myLetterSection">
+        <div class="sep" style="margin:24px 0 20px;"></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <span style="font-size:0.78rem; font-weight:500; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink-muted);">Your Letter</span>
+          <div style="display:flex; gap:8px;" id="myLetterActions"></div>
+        </div>
+        <div id="myLetterContent"></div>
+      </div>
+
+      <div class="floral-deco" style="margin-top:28px;">✦ ✿ ✦</div>
+      <p class="hint" style="text-align:center;">Wishing Ms. Jenny all the best in her next chapter. 💛</p>
+    </section>
+  </main>
+
+  <!-- Write / Edit Modal -->
+  <div class="overlay" id="writeOverlay">
+    <div class="modal edit-modal" role="dialog" aria-modal="true" style="max-width:680px;">
+      <button class="modal-close" id="closeWriteModal">✕</button>
+      <p class="modal-eyebrow" id="writeModalEyebrow">Your Farewell Letter</p>
+      <h2 class="modal-title" id="writeModalTitle">Write to Ms. Jenny</h2>
+      <div class="modal-sep"></div>
+
+      <div class="modal-body-form">
+        <div class="form-grid" id="nameFieldsGroup">
+          <div>
+            <label class="label" for="wName">Your Name</label>
+            <input class="input" id="wName" type="text" placeholder="Your full name" required>
+          </div>
+          <div>
+            <label class="label" for="wCourse">Course & Section</label>
+            <input class="input" id="wCourse" type="text" placeholder="e.g. BSIT 3-A" required>
+          </div>
+        </div>
+
+        <label class="label" for="wLetter" style="margin-top:4px;">Your Letter</label>
+        <textarea class="textarea" id="wLetter" placeholder="Dear Ms. Jenny, ..."></textarea>
+
+        <div id="writeNotice"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn--ghost" id="cancelWriteBtn">Cancel</button>
+        <button class="btn" id="saveLetterBtn">💾 Save Letter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Letter Modal -->
+  <div class="overlay" id="viewOverlay">
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="closeViewModal">✕</button>
+      <p class="modal-eyebrow">Your Farewell Letter</p>
+      <h2 class="modal-title" id="viewName"></h2>
+      <p class="modal-meta" id="viewCourse"></p>
+      <p class="creator-line" id="viewCreatedBy"></p>
+      <div class="modal-sep"></div>
+      <div class="modal-letter-body" id="viewBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn--ghost" id="closeViewBtn">Close</button>
+        <button class="btn btn--danger" id="viewDeleteBtn">🗑 Delete</button>
+        <button class="btn" id="viewEditBtn">✏️ Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Browse Letters Modal -->
+  <div class="overlay" id="browseOverlay">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:780px;">
+      <button class="modal-close" id="closeBrowseModal">✕</button>
+      <p class="modal-eyebrow">Farewell Letters</p>
+      <h2 class="modal-title">Letters from Students</h2>
+      <p class="modal-meta">Kind words from your classmates to Ms. Jenny.</p>
+      <div class="modal-sep"></div>
+      <div id="browseLettersList"></div>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    if (!requireRole('student')) { /* redirected */ }
+
+    const session = getSession();
+
+    // ── Nav ──────────────────────────────────────────────────
+    document.getElementById('navUser').textContent = session.name || 'Student';
+    document.getElementById('heroName').textContent = session.name ? session.name.split(' ')[0] : 'Student';
+    document.getElementById('logoutBtn').addEventListener('click', e => {
+      e.preventDefault(); clearSession(); redirectTo('index.html');
+    });
+
+    // ── State ────────────────────────────────────────────────
+    let myName   = session.name || '';
+    let myCourse = session.course || '';
+
+    // Try to find existing submission to prefill name/course
+    function loadMySubmission() {
+      // If we have name+course in session, look it up directly
+      if (myName && myCourse) return getSubmission(myName, myCourse);
+      // Otherwise scan all to find by name
+      if (myName) {
+        const all = getAllSubmissions();
+        return all.find(e => e.student_name.toLowerCase() === myName.toLowerCase()) || null;
+      }
+      return null;
+    }
+
+    // ── Render My Letter Section ─────────────────────────────
+    function renderMyLetterSection() {
+      const sub = loadMySubmission();
+      const section = document.getElementById('myLetterSection');
+      const content = document.getElementById('myLetterContent');
+      const actions = document.getElementById('myLetterActions');
+
+      if (!sub) {
+        content.innerHTML = `
+          <div class="my-letter-preview" style="text-align:center; padding:24px;">
+            <p style="font-family:'Lora',serif; font-style:italic; color:var(--ink-muted); margin-bottom:16px;">
+              You haven't written a letter yet. 🌸
+            </p>
+            <button class="btn btn--sm" id="inlineWriteBtn">✏️ Write Now</button>
+          </div>`;
+        actions.innerHTML = '';
+        document.getElementById('inlineWriteBtn')?.addEventListener('click', openWriteModal);
+        return;
+      }
+
+      // Sync session with found data
+      myName   = sub.student_name;
+      myCourse = sub.course;
+
+      content.innerHTML = `
+        <div class="sticky-note sticky-note--mini">
+          <div class="sticky-top">
+            <strong>${esc(sub.student_name)}</strong>
+            <span>${esc(sub.course)}</span>
+          </div>
+          <p class="creator-line">Created by: ${esc(sub.student_name)}</p>
+          <p class="sticky-letter">${nl2br(sub.letter)}</p>
+          ${sub.updated_at ? `<p class="meta" style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 Last updated: ${esc(sub.updated_at)}</p>` : ''}
+        </div>`;
+
+      actions.innerHTML = `
+        <button class="btn btn--sm btn--ghost" id="viewMyBtn">👁 View</button>
+        <button class="btn btn--sm" id="editMyBtn">✏️ Edit</button>
+        <button class="btn btn--sm btn--danger" id="deleteMyBtn">🗑 Delete</button>`;
+
+      document.getElementById('viewMyBtn').addEventListener('click', () => openViewModal(sub));
+      document.getElementById('editMyBtn').addEventListener('click', () => openEditModal(sub));
+      document.getElementById('deleteMyBtn').addEventListener('click', () => confirmDelete(sub.student_name, sub.course));
+    }
+
+    // ── Write / Edit Modal ───────────────────────────────────
+    let editingKey = null;
+
+    function openWriteModal() {
+      editingKey = null;
+      document.getElementById('writeModalEyebrow').textContent = 'New Letter';
+      document.getElementById('writeModalTitle').textContent = 'Write to Ms. Jenny';
+      document.getElementById('nameFieldsGroup').classList.remove('hidden');
+      document.getElementById('wName').value = myName || '';
+      document.getElementById('wCourse').value = myCourse || '';
+      document.getElementById('wLetter').value = '';
+      document.getElementById('writeNotice').innerHTML = '';
+      openOverlay('writeOverlay');
+    }
+
+    function openEditModal(sub) {
+      editingKey = buildKey(sub.student_name, sub.course);
+      document.getElementById('writeModalEyebrow').textContent = 'Edit Letter';
+      document.getElementById('writeModalTitle').textContent = 'Update Your Letter';
+      // When editing, lock name fields since they're identity keys
+      document.getElementById('nameFieldsGroup').classList.remove('hidden');
+      document.getElementById('wName').value = sub.student_name;
+      document.getElementById('wCourse').value = sub.course;
+      document.getElementById('wLetter').value = sub.letter;
+      document.getElementById('writeNotice').innerHTML = '';
+      openOverlay('writeOverlay');
+    }
+
+    document.getElementById('saveLetterBtn').addEventListener('click', () => {
+      const name   = document.getElementById('wName').value.trim();
+      const course = document.getElementById('wCourse').value.trim();
+      const letter = document.getElementById('wLetter').value.trim();
+      const notice = document.getElementById('writeNotice');
+
+      if (!name || !course || !letter) {
+        notice.innerHTML = '<div class="notice notice--error">Please fill in all fields.</div>';
+        return;
+      }
+
+      upsertSubmission(name, course, letter);
+      myName   = name;
+      myCourse = course;
+
+      // Update session name/course
+      setSession('student', name, course);
+
+      notice.innerHTML = '<div class="notice notice--success">Letter saved! ✓</div>';
+      setTimeout(() => {
+        closeOverlay('writeOverlay');
+        renderMyLetterSection();
+      }, 800);
+    });
+
+    document.getElementById('cancelWriteBtn').addEventListener('click', () => closeOverlay('writeOverlay'));
+    document.getElementById('closeWriteModal').addEventListener('click', () => closeOverlay('writeOverlay'));
+
+    // ── View Modal ───────────────────────────────────────────
+    function openViewModal(sub) {
+      document.getElementById('viewName').textContent = sub.student_name || 'Anonymous';
+      document.getElementById('viewCourse').textContent = sub.course;
+      document.getElementById('viewCreatedBy').textContent = 'Created by: ' + sub.student_name;
+      document.getElementById('viewBody').innerHTML = nl2br(sub.letter);
+      openOverlay('viewOverlay');
+    }
+
+    document.getElementById('closeViewModal').addEventListener('click', () => closeOverlay('viewOverlay'));
+    document.getElementById('closeViewBtn').addEventListener('click', () => closeOverlay('viewOverlay'));
+
+    document.getElementById('viewEditBtn').addEventListener('click', () => {
+      closeOverlay('viewOverlay');
+      const sub = loadMySubmission();
+      if (sub) openEditModal(sub);
+    });
+
+    document.getElementById('viewDeleteBtn').addEventListener('click', () => {
+      closeOverlay('viewOverlay');
+      const sub = loadMySubmission();
+      if (sub) confirmDelete(sub.student_name, sub.course);
+    });
+
+    // ── Delete ───────────────────────────────────────────────
+    function confirmDelete(name, course) {
+      if (!confirm('Are you sure you want to delete your letter? This cannot be undone.')) return;
+      deleteSubmissionByKey(name, course);
+      myName   = '';
+      myCourse = '';
+      setSession('student', session.name || '', '');
+      renderMyLetterSection();
+    }
+
+    // ── Browse Modal ─────────────────────────────────────────
+    function openBrowseModal() {
+      const sub = loadMySubmission();
+      const others = sub ? getOtherSubmissions(sub.student_name, sub.course) : getAllSubmissions();
+      const list = document.getElementById('browseLettersList');
+
+      if (others.length === 0) {
+        list.innerHTML = `
+          <div class="no-letter">
+            <div class="no-letter-icon">📭</div>
+            <p>No other letters yet.<br>Be the first to write one!</p>
+          </div>`;
+      } else {
+        list.innerHTML = `<div class="letters-grid">${others.map(e => `
+          <article class="sticky-note sticky-note--mini">
+            <div class="sticky-top">
+              <strong>${esc(e.student_name || 'Anonymous Student')}</strong>
+              <span>${esc(e.course)}</span>
+            </div>
+            <p class="creator-line">Created by: ${esc(e.student_name || 'Anonymous')}</p>
+            <p class="sticky-letter">${nl2br(e.letter)}</p>
+            ${e.updated_at ? `<p class="meta" style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 ${esc(e.updated_at)}</p>` : ''}
+          </article>`).join('')}
+        </div>`;
+      }
+      openOverlay('browseOverlay');
+    }
+
+    document.getElementById('closeBrowseModal').addEventListener('click', () => closeOverlay('browseOverlay'));
+
+    // ── Overlay helpers ──────────────────────────────────────
+    function openOverlay(id) {
+      document.getElementById(id).classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeOverlay(id) {
+      document.getElementById(id).classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    // Backdrop click closes
+    ['writeOverlay','viewOverlay','browseOverlay'].forEach(id => {
+      document.getElementById(id).addEventListener('click', e => {
+        if (e.target === document.getElementById(id)) closeOverlay(id);
+      });
+    });
+
+    // Escape key
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        ['writeOverlay','viewOverlay','browseOverlay'].forEach(closeOverlay);
+      }
+    });
+
+    // ── Button wiring ────────────────────────────────────────
+    document.getElementById('writeBtn').addEventListener('click', () => {
+      const sub = loadMySubmission();
+      if (sub) openEditModal(sub); else openWriteModal();
+    });
+    document.getElementById('browseBtn').addEventListener('click', openBrowseModal);
+
+    // ── Init ─────────────────────────────────────────────────
+    renderMyLetterSection();
+  </script>
+</body>
+</html>
