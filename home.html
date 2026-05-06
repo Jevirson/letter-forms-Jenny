@@ -118,7 +118,7 @@
       <h2 class="modal-title">Letters from Students</h2>
       <p class="modal-meta">Kind words from your classmates to Ms. Jenny.</p>
       <div class="modal-sep"></div>
-      <div id="browseLettersList"></div>
+      <div id="browseLettersList" style="overflow-y:auto; max-height:55vh; padding-right:4px;"></div>
     </div>
   </div>
 
@@ -129,26 +129,38 @@
     const session = getSession();
 
     // ── Nav ──────────────────────────────────────────────────
-    document.getElementById('navUser').textContent = session.name || 'Student';
-    document.getElementById('heroName').textContent = session.name ? session.name.split(' ')[0] : 'Student';
+    const displayName = (profile && profile.name) ? profile.name : '';
+    document.getElementById('navUser').textContent = displayName || 'Student';
+    document.getElementById('heroName').textContent = displayName ? displayName.split(' ')[0] : 'Student';
     document.getElementById('logoutBtn').addEventListener('click', e => {
       e.preventDefault(); clearSession(); redirectTo('index.html');
     });
 
     // ── State ────────────────────────────────────────────────
-    let myName   = session.name || '';
-    let myCourse = session.course || '';
+    // session.name is the login username ("student"), not the student's real name.
+    // We store the real name+course in a separate localStorage key (PROFILE_KEY)
+    // so it survives logout/re-login without losing letters.
+    const PROFILE_KEY = 'farewell_jenny_profile';
+    function getProfile() { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch { return null; } }
+    function saveProfile(n, c) { localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: n, course: c })); }
+    function clearProfile() { localStorage.removeItem(PROFILE_KEY); }
 
-    // Try to find existing submission to prefill name/course
+    const profile = getProfile();
+    let myName   = profile ? profile.name   : '';
+    let myCourse = profile ? profile.course : '';
+
+    // Find this student's own submission only
     function loadMySubmission() {
-      // If we have name+course in session, look it up directly
-      if (myName && myCourse) return getSubmission(myName, myCourse);
-      // Otherwise scan all to find by name
-      if (myName) {
-        const all = getAllSubmissions();
-        return all.find(e => e.student_name.toLowerCase() === myName.toLowerCase()) || null;
+      if (!myName) return null;
+      if (myCourse) {
+        const direct = getSubmission(myName, myCourse);
+        if (direct) return direct;
       }
-      return null;
+      // Fallback: match by name only
+      const all = getAllSubmissions();
+      const found = all.find(e => e.student_name.toLowerCase().trim() === myName.toLowerCase().trim());
+      if (found) { myCourse = found.course; saveProfile(myName, myCourse); }
+      return found || null;
     }
 
     // ── Render My Letter Section ─────────────────────────────
@@ -238,9 +250,7 @@
       upsertSubmission(name, course, letter);
       myName   = name;
       myCourse = course;
-
-      // Update session name/course
-      setSession('student', name, course);
+      saveProfile(name, course);
 
       notice.innerHTML = '<div class="notice notice--success">Letter saved! ✓</div>';
       setTimeout(() => {
@@ -282,24 +292,23 @@
       deleteSubmissionByKey(name, course);
       myName   = '';
       myCourse = '';
-      setSession('student', session.name || '', '');
+      clearProfile();
       renderMyLetterSection();
     }
 
     // ── Browse Modal ─────────────────────────────────────────
     function openBrowseModal() {
-      const sub = loadMySubmission();
-      const others = sub ? getOtherSubmissions(sub.student_name, sub.course) : getAllSubmissions();
+      const all = getAllSubmissions();
       const list = document.getElementById('browseLettersList');
 
-      if (others.length === 0) {
+      if (all.length === 0) {
         list.innerHTML = `
           <div class="no-letter">
             <div class="no-letter-icon">📭</div>
-            <p>No other letters yet.<br>Be the first to write one!</p>
+            <p>No letters yet.<br>Be the first to write one!</p>
           </div>`;
       } else {
-        list.innerHTML = `<div class="letters-grid">${others.map(e => `
+        list.innerHTML = `<div class="letters-grid">${all.map(e => `
           <article class="sticky-note sticky-note--mini">
             <div class="sticky-top">
               <strong>${esc(e.student_name || 'Anonymous Student')}</strong>
