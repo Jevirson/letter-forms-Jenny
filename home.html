@@ -167,6 +167,18 @@
       const content = document.getElementById('myLetterContent');
       const actions = document.getElementById('myLetterActions');
 
+      // Update write button label
+      const writeBtn = document.getElementById('writeBtn');
+      const writeBtnTitle = writeBtn.querySelector('.card-title');
+      const writeBtnDesc = writeBtn.querySelector('.card-desc');
+      if (sub) {
+        writeBtnTitle.textContent = 'Write New Letter';
+        writeBtnDesc.textContent = 'Start fresh with a new farewell message';
+      } else {
+        writeBtnTitle.textContent = 'Write a Letter';
+        writeBtnDesc.textContent = 'Compose your personal farewell message to Ms. Jenny';
+      }
+
       if (!sub) {
         content.innerHTML = `
           <div class="my-letter-preview" style="text-align:center; padding:24px;">
@@ -213,8 +225,8 @@
       document.getElementById('writeModalEyebrow').textContent = 'New Letter';
       document.getElementById('writeModalTitle').textContent = 'Write to Ms. Jenny';
       document.getElementById('nameFieldsGroup').classList.remove('hidden');
-      document.getElementById('wName').value = myName || '';
-      document.getElementById('wCourse').value = myCourse || '';
+      document.getElementById('wName').value = '';
+      document.getElementById('wCourse').value = '';
       document.getElementById('wLetter').value = '';
       document.getElementById('writeNotice').innerHTML = '';
       openOverlay('writeOverlay');
@@ -347,10 +359,7 @@
     });
 
     // ── Button wiring ────────────────────────────────────────
-    document.getElementById('writeBtn').addEventListener('click', () => {
-      const sub = loadMySubmission();
-      if (sub) openEditModal(sub); else openWriteModal();
-    });
+    document.getElementById('writeBtn').addEventListener('click', openWriteModal);
     document.getElementById('browseBtn').addEventListener('click', openBrowseModal);
 
     // ── Init ─────────────────────────────────────────────────
