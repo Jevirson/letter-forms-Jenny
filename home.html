@@ -8,7 +8,6 @@
 </head>
 <body>
 
-  <!-- Nav -->
   <nav class="top-nav">
     <span class="nav-brand">💌 Farewell, Ms. Jenny</span>
     <div class="nav-right">
@@ -20,7 +19,6 @@
   <main class="page">
     <section class="card">
 
-      <!-- Home Hero -->
       <div class="home-hero">
         <span class="big-icon">🌸</span>
         <h1>Hello, <span id="heroName">Student</span>!</h1>
@@ -30,12 +28,11 @@
         </p>
       </div>
 
-      <!-- Action Cards -->
       <div class="home-actions">
         <button class="action-card action-card--write" id="writeBtn">
           <span class="card-icon">✏️</span>
           <span class="card-title">Write a Letter</span>
-          <span class="card-desc">Compose or edit your personal farewell message to Ms. Jenny</span>
+          <span class="card-desc">Compose your personal farewell message to Ms. Jenny</span>
         </button>
         <button class="action-card action-card--browse" id="browseBtn">
           <span class="card-icon">📖</span>
@@ -44,14 +41,17 @@
         </button>
       </div>
 
-      <!-- My Letter Preview -->
       <div id="myLetterSection">
         <div class="sep" style="margin:24px 0 20px;"></div>
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
           <span style="font-size:0.78rem; font-weight:500; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink-muted);">Your Letter</span>
           <div style="display:flex; gap:8px;" id="myLetterActions"></div>
         </div>
-        <div id="myLetterContent"></div>
+        <div id="myLetterContent">
+          <div style="text-align:center; padding:20px; color:var(--ink-muted); font-family:'Lora',serif; font-style:italic;">
+            Loading...
+          </div>
+        </div>
       </div>
 
       <div class="floral-deco" style="margin-top:28px;">✦ ✿ ✦</div>
@@ -66,9 +66,8 @@
       <p class="modal-eyebrow" id="writeModalEyebrow">Your Farewell Letter</p>
       <h2 class="modal-title" id="writeModalTitle">Write to Ms. Jenny</h2>
       <div class="modal-sep"></div>
-
       <div class="modal-body-form">
-        <div class="form-grid" id="nameFieldsGroup">
+        <div class="form-grid">
           <div>
             <label class="label" for="wName">Your Name</label>
             <input class="input" id="wName" type="text" placeholder="Your full name" required>
@@ -78,13 +77,10 @@
             <input class="input" id="wCourse" type="text" placeholder="e.g. BSIT 3-A" required>
           </div>
         </div>
-
         <label class="label" for="wLetter" style="margin-top:4px;">Your Letter</label>
         <textarea class="textarea" id="wLetter" placeholder="Dear Ms. Jenny, ..."></textarea>
-
         <div id="writeNotice"></div>
       </div>
-
       <div class="modal-footer">
         <button class="btn btn--ghost" id="cancelWriteBtn">Cancel</button>
         <button class="btn" id="saveLetterBtn">💾 Save Letter</button>
@@ -124,16 +120,9 @@
 
   <script src="shared.js"></script>
   <script>
-    if (!requireRole('student')) { /* redirected */ }
+    if (!requireRole('student')) {}
 
     const session = getSession();
-
-    // ── Profile (real name+course, persists across logout) ───
-    const PROFILE_KEY = 'farewell_jenny_profile';
-    function getProfile() { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch { return null; } }
-    function saveProfile(n, c) { localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: n, course: c })); }
-    function clearProfile() { localStorage.removeItem(PROFILE_KEY); }
-
     const profile = getProfile();
     let myName   = profile ? profile.name   : '';
     let myCourse = profile ? profile.course : '';
@@ -146,37 +135,33 @@
       e.preventDefault(); clearSession(); redirectTo('index.html');
     });
 
-    // Find this student's own submission only
-    function loadMySubmission() {
+    // ── Load my submission from Supabase ─────────────────────
+    async function loadMySubmission() {
       if (!myName) return null;
       if (myCourse) {
-        const direct = getSubmission(myName, myCourse);
+        const direct = await db.getByKey(myName, myCourse);
         if (direct) return direct;
       }
-      // Fallback: match by name only
-      const all = getAllSubmissions();
-      const found = all.find(e => e.student_name.toLowerCase().trim() === myName.toLowerCase().trim());
+      const found = await db.getByName(myName);
       if (found) { myCourse = found.course; saveProfile(myName, myCourse); }
       return found || null;
     }
 
     // ── Render My Letter Section ─────────────────────────────
-    function renderMyLetterSection() {
-      const sub = loadMySubmission();
-      const section = document.getElementById('myLetterSection');
+    async function renderMyLetterSection() {
+      const sub = await loadMySubmission();
       const content = document.getElementById('myLetterContent');
       const actions = document.getElementById('myLetterActions');
 
-      // Update write button label
       const writeBtn = document.getElementById('writeBtn');
       const writeBtnTitle = writeBtn.querySelector('.card-title');
-      const writeBtnDesc = writeBtn.querySelector('.card-desc');
+      const writeBtnDesc  = writeBtn.querySelector('.card-desc');
       if (sub) {
         writeBtnTitle.textContent = 'Write New Letter';
-        writeBtnDesc.textContent = 'Start fresh with a new farewell message';
+        writeBtnDesc.textContent  = 'Start fresh with a new farewell message';
       } else {
         writeBtnTitle.textContent = 'Write a Letter';
-        writeBtnDesc.textContent = 'Compose your personal farewell message to Ms. Jenny';
+        writeBtnDesc.textContent  = 'Compose your personal farewell message to Ms. Jenny';
       }
 
       if (!sub) {
@@ -192,9 +177,12 @@
         return;
       }
 
-      // Sync session with found data
       myName   = sub.student_name;
       myCourse = sub.course;
+
+      const dateStr = sub.updated_at
+        ? new Date(sub.updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+        : '';
 
       content.innerHTML = `
         <div class="sticky-note sticky-note--mini">
@@ -204,7 +192,7 @@
           </div>
           <p class="creator-line">Created by: ${esc(sub.student_name)}</p>
           <p class="sticky-letter">${nl2br(sub.letter)}</p>
-          ${sub.updated_at ? `<p class="meta" style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 Last updated: ${esc(sub.updated_at)}</p>` : ''}
+          ${dateStr ? `<p class="meta" style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 Last updated: ${esc(dateStr)}</p>` : ''}
         </div>`;
 
       actions.innerHTML = `
@@ -212,60 +200,62 @@
         <button class="btn btn--sm" id="editMyBtn">✏️ Edit</button>
         <button class="btn btn--sm btn--danger" id="deleteMyBtn">🗑 Delete</button>`;
 
-      document.getElementById('viewMyBtn').addEventListener('click', () => openViewModal(sub));
-      document.getElementById('editMyBtn').addEventListener('click', () => openEditModal(sub));
+      document.getElementById('viewMyBtn').addEventListener('click',   () => openViewModal(sub));
+      document.getElementById('editMyBtn').addEventListener('click',   () => openEditModal(sub));
       document.getElementById('deleteMyBtn').addEventListener('click', () => confirmDelete(sub.student_name, sub.course));
     }
 
-    // ── Write / Edit Modal ───────────────────────────────────
-    let editingKey = null;
-
+    // ── Write Modal (blank) ──────────────────────────────────
     function openWriteModal() {
-      editingKey = null;
       document.getElementById('writeModalEyebrow').textContent = 'New Letter';
-      document.getElementById('writeModalTitle').textContent = 'Write to Ms. Jenny';
-      document.getElementById('nameFieldsGroup').classList.remove('hidden');
-      document.getElementById('wName').value = '';
+      document.getElementById('writeModalTitle').textContent   = 'Write to Ms. Jenny';
+      document.getElementById('wName').value   = '';
       document.getElementById('wCourse').value = '';
       document.getElementById('wLetter').value = '';
       document.getElementById('writeNotice').innerHTML = '';
       openOverlay('writeOverlay');
     }
 
+    // ── Edit Modal (pre-filled) ──────────────────────────────
     function openEditModal(sub) {
-      editingKey = buildKey(sub.student_name, sub.course);
       document.getElementById('writeModalEyebrow').textContent = 'Edit Letter';
-      document.getElementById('writeModalTitle').textContent = 'Update Your Letter';
-      // When editing, lock name fields since they're identity keys
-      document.getElementById('nameFieldsGroup').classList.remove('hidden');
-      document.getElementById('wName').value = sub.student_name;
+      document.getElementById('writeModalTitle').textContent   = 'Update Your Letter';
+      document.getElementById('wName').value   = sub.student_name;
       document.getElementById('wCourse').value = sub.course;
       document.getElementById('wLetter').value = sub.letter;
       document.getElementById('writeNotice').innerHTML = '';
       openOverlay('writeOverlay');
     }
 
-    document.getElementById('saveLetterBtn').addEventListener('click', () => {
+    // ── Save ─────────────────────────────────────────────────
+    document.getElementById('saveLetterBtn').addEventListener('click', async () => {
       const name   = document.getElementById('wName').value.trim();
       const course = document.getElementById('wCourse').value.trim();
       const letter = document.getElementById('wLetter').value.trim();
       const notice = document.getElementById('writeNotice');
+      const btn    = document.getElementById('saveLetterBtn');
 
       if (!name || !course || !letter) {
         notice.innerHTML = '<div class="notice notice--error">Please fill in all fields.</div>';
         return;
       }
 
-      upsertSubmission(name, course, letter);
-      myName   = name;
-      myCourse = course;
-      saveProfile(name, course);
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
 
-      notice.innerHTML = '<div class="notice notice--success">Letter saved! ✓</div>';
-      setTimeout(() => {
-        closeOverlay('writeOverlay');
-        renderMyLetterSection();
-      }, 800);
+      const ok = await db.upsert(name, course, letter);
+      if (ok) {
+        myName   = name;
+        myCourse = course;
+        saveProfile(name, course);
+        notice.innerHTML = '<div class="notice notice--success">Letter saved! ✓</div>';
+        setTimeout(() => { closeOverlay('writeOverlay'); renderMyLetterSection(); }, 800);
+      } else {
+        notice.innerHTML = '<div class="notice notice--error">Failed to save. Please try again.</div>';
+      }
+
+      btn.disabled = false;
+      btn.textContent = '💾 Save Letter';
     });
 
     document.getElementById('cancelWriteBtn').addEventListener('click', () => closeOverlay('writeOverlay'));
@@ -273,42 +263,49 @@
 
     // ── View Modal ───────────────────────────────────────────
     function openViewModal(sub) {
-      document.getElementById('viewName').textContent = sub.student_name || 'Anonymous';
-      document.getElementById('viewCourse').textContent = sub.course;
+      document.getElementById('viewName').textContent      = sub.student_name || 'Anonymous';
+      document.getElementById('viewCourse').textContent    = sub.course;
       document.getElementById('viewCreatedBy').textContent = 'Created by: ' + sub.student_name;
-      document.getElementById('viewBody').innerHTML = nl2br(sub.letter);
+      document.getElementById('viewBody').innerHTML        = nl2br(sub.letter);
       openOverlay('viewOverlay');
     }
 
     document.getElementById('closeViewModal').addEventListener('click', () => closeOverlay('viewOverlay'));
-    document.getElementById('closeViewBtn').addEventListener('click', () => closeOverlay('viewOverlay'));
+    document.getElementById('closeViewBtn').addEventListener('click',   () => closeOverlay('viewOverlay'));
 
-    document.getElementById('viewEditBtn').addEventListener('click', () => {
+    document.getElementById('viewEditBtn').addEventListener('click', async () => {
       closeOverlay('viewOverlay');
-      const sub = loadMySubmission();
+      const sub = await loadMySubmission();
       if (sub) openEditModal(sub);
     });
 
-    document.getElementById('viewDeleteBtn').addEventListener('click', () => {
+    document.getElementById('viewDeleteBtn').addEventListener('click', async () => {
       closeOverlay('viewOverlay');
-      const sub = loadMySubmission();
+      const sub = await loadMySubmission();
       if (sub) confirmDelete(sub.student_name, sub.course);
     });
 
     // ── Delete ───────────────────────────────────────────────
-    function confirmDelete(name, course) {
+    async function confirmDelete(name, course) {
       if (!confirm('Are you sure you want to delete your letter? This cannot be undone.')) return;
-      deleteSubmissionByKey(name, course);
-      myName   = '';
-      myCourse = '';
-      clearProfile();
-      renderMyLetterSection();
+      const ok = await db.delete(name, course);
+      if (ok) {
+        myName   = '';
+        myCourse = '';
+        clearProfile();
+        renderMyLetterSection();
+      } else {
+        alert('Failed to delete. Please try again.');
+      }
     }
 
     // ── Browse Modal ─────────────────────────────────────────
-    function openBrowseModal() {
-      const all = getAllSubmissions();
+    async function openBrowseModal() {
       const list = document.getElementById('browseLettersList');
+      list.innerHTML = '<p style="text-align:center; color:var(--ink-muted); font-family:Lora,serif; font-style:italic; padding:20px;">Loading letters...</p>';
+      openOverlay('browseOverlay');
+
+      const all = await db.getAll();
 
       if (all.length === 0) {
         list.innerHTML = `
@@ -316,46 +313,40 @@
             <div class="no-letter-icon">📭</div>
             <p>No letters yet.<br>Be the first to write one!</p>
           </div>`;
-      } else {
-        list.innerHTML = `<div class="letters-grid">${all.map(e => `
+        return;
+      }
+
+      list.innerHTML = `<div class="letters-grid">${all.map(e => {
+        const dateStr = e.updated_at
+          ? new Date(e.updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+          : '';
+        return `
           <article class="sticky-note sticky-note--mini">
             <div class="sticky-top">
-              <strong>${esc(e.student_name || 'Anonymous Student')}</strong>
+              <strong>${esc(e.student_name || 'Anonymous')}</strong>
               <span>${esc(e.course)}</span>
             </div>
             <p class="creator-line">Created by: ${esc(e.student_name || 'Anonymous')}</p>
             <p class="sticky-letter">${nl2br(e.letter)}</p>
-            ${e.updated_at ? `<p class="meta" style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 ${esc(e.updated_at)}</p>` : ''}
-          </article>`).join('')}
-        </div>`;
-      }
-      openOverlay('browseOverlay');
+            ${dateStr ? `<p class="meta" style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 ${esc(dateStr)}</p>` : ''}
+          </article>`;
+      }).join('')}</div>`;
     }
 
     document.getElementById('closeBrowseModal').addEventListener('click', () => closeOverlay('browseOverlay'));
 
     // ── Overlay helpers ──────────────────────────────────────
-    function openOverlay(id) {
-      document.getElementById(id).classList.add('open');
-      document.body.style.overflow = 'hidden';
-    }
-    function closeOverlay(id) {
-      document.getElementById(id).classList.remove('open');
-      document.body.style.overflow = '';
-    }
+    function openOverlay(id) { document.getElementById(id).classList.add('open'); document.body.style.overflow = 'hidden'; }
+    function closeOverlay(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow = ''; }
 
-    // Backdrop click closes
     ['writeOverlay','viewOverlay','browseOverlay'].forEach(id => {
       document.getElementById(id).addEventListener('click', e => {
         if (e.target === document.getElementById(id)) closeOverlay(id);
       });
     });
 
-    // Escape key
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') {
-        ['writeOverlay','viewOverlay','browseOverlay'].forEach(closeOverlay);
-      }
+      if (e.key === 'Escape') ['writeOverlay','viewOverlay','browseOverlay'].forEach(closeOverlay);
     });
 
     // ── Button wiring ────────────────────────────────────────
