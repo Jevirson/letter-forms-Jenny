@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farewell Ms. Jenny — Your Letters</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="top-nav">
+    <span class="nav-brand">💌 Farewell, Ms. Jenny</span>
+    <div class="nav-right">
+      <span class="nav-user">Teacher View</span>
+      <a class="link" href="#" id="logoutBtn">Log Out</a>
+    </div>
+  </nav>
+
+  <main class="page">
+    <section class="card">
+
+      <div class="hero">
+        <div class="hero-icon">👩‍🏫</div>
+        <div class="hero-text">
+          <h1>For Ms. Jenny</h1>
+          <p class="subtitle">Letters from your students</p>
+        </div>
+      </div>
+
+      <div class="header" style="margin-bottom:20px;">
+        <span class="badge">Teacher View · Read Only</span>
+        <button class="btn btn--sm btn--ghost" id="refreshBtn">🔄 Refresh</button>
+      </div>
+
+      <p class="subtitle">All the heartfelt farewell letters written by your students.</p>
+
+      <div class="sep"></div>
+
+      <div class="panel" id="lettersPanel">
+        <!-- rendered by JS -->
+      </div>
+
+      <div class="floral-deco" style="margin-top:28px;">✦ ✿ ✦</div>
+      <p class="hint" style="text-align:center; margin-top:4px;">
+        Wishing you all the best in your next chapter, Ms. Jenny. 💛
+      </p>
+
+    </section>
+  </main>
+
+  <!-- Full Letter Modal -->
+  <div class="overlay" id="readOverlay">
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="closeReadModal">✕</button>
+      <p class="modal-eyebrow">Farewell Letter</p>
+      <h2 class="modal-title" id="readName"></h2>
+      <p class="modal-meta" id="readCourse"></p>
+      <p class="creator-line" id="readCreatedBy"></p>
+      <div class="modal-sep"></div>
+      <div class="modal-letter-body" id="readBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn--ghost" id="closeReadBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    if (!requireRole('teacher')) { /* redirected */ }
+
+    document.getElementById('logoutBtn').addEventListener('click', e => {
+      e.preventDefault(); clearSession(); redirectTo('index.html');
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', renderLetters);
+
+    function renderLetters() {
+      const letters = getAllSubmissions();
+      const panel = document.getElementById('lettersPanel');
+
+      if (letters.length === 0) {
+        panel.innerHTML = `
+          <div class="no-letter">
+            <div class="no-letter-icon">📭</div>
+            <p>No letters have been written yet.<br>Check back soon!</p>
+          </div>`;
+        return;
+      }
+
+      panel.innerHTML = `<div class="letters-grid">${letters.map((e, i) => `
+        <article class="sticky-note sticky-note--teacher sticky-note--mini">
+          <div class="sticky-top">
+            <strong>${esc(e.student_name || 'Anonymous Student')}</strong>
+            <span>${esc(e.course)}</span>
+          </div>
+          <p class="creator-line">Created by: ${esc(e.student_name || 'Anonymous')}</p>
+          <p class="sticky-letter">${nl2br(e.letter)}</p>
+          ${e.updated_at ? `<p class="meta" style="margin-top:10px; padding-top:10px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 Last updated: ${esc(e.updated_at)}</p>` : ''}
+          <div class="sticky-actions">
+            <button class="btn btn--sm btn--ghost read-btn" data-idx="${i}">📖 Read Full</button>
+          </div>
+        </article>`).join('')}
+      </div>`;
+
+      // Wire read buttons
+      const allLetters = letters;
+      document.querySelectorAll('.read-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const entry = allLetters[parseInt(btn.dataset.idx)];
+          openReadModal(entry);
+        });
+      });
+    }
+
+    function openReadModal(sub) {
+      document.getElementById('readName').textContent = sub.student_name || 'Anonymous Student';
+      document.getElementById('readCourse').textContent = sub.course;
+      document.getElementById('readCreatedBy').textContent = 'Written by: ' + (sub.student_name || 'Anonymous');
+      document.getElementById('readBody').innerHTML = nl2br(sub.letter);
+      document.getElementById('readOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    document.getElementById('closeReadModal').addEventListener('click', closeReadModal);
+    document.getElementById('closeReadBtn').addEventListener('click', closeReadModal);
+    document.getElementById('readOverlay').addEventListener('click', e => {
+      if (e.target === document.getElementById('readOverlay')) closeReadModal();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeReadModal(); });
+
+    function closeReadModal() {
+      document.getElementById('readOverlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    renderLetters();
+  </script>
+</body>
+</html>
