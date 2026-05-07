@@ -8,7 +8,6 @@
 </head>
 <body>
 
-  <!-- Nav -->
   <nav class="top-nav">
     <span class="nav-brand">💌 Farewell, Ms. Jenny</span>
     <div class="nav-right">
@@ -38,7 +37,9 @@
       <div class="sep"></div>
 
       <div class="panel" id="lettersPanel">
-        <!-- rendered by JS -->
+        <div style="text-align:center; padding:40px; color:var(--ink-muted); font-family:'Lora',serif; font-style:italic;">
+          Loading letters...
+        </div>
       </div>
 
       <div class="floral-deco" style="margin-top:28px;">✦ ✿ ✦</div>
@@ -67,7 +68,7 @@
 
   <script src="shared.js"></script>
   <script>
-    if (!requireRole('teacher')) { /* redirected */ }
+    if (!requireRole('teacher')) {}
 
     document.getElementById('logoutBtn').addEventListener('click', e => {
       e.preventDefault(); clearSession(); redirectTo('index.html');
@@ -75,9 +76,11 @@
 
     document.getElementById('refreshBtn').addEventListener('click', renderLetters);
 
-    function renderLetters() {
-      const letters = getAllSubmissions();
+    async function renderLetters() {
       const panel = document.getElementById('lettersPanel');
+      panel.innerHTML = '<div style="text-align:center; padding:40px; color:var(--ink-muted); font-family:\'Lora\',serif; font-style:italic;">Loading letters...</div>';
+
+      const letters = await db.getAll();
 
       if (letters.length === 0) {
         panel.innerHTML = `
@@ -88,38 +91,45 @@
         return;
       }
 
-      panel.innerHTML = `<div class="letters-grid">${letters.map((e, i) => `
-        <article class="sticky-note sticky-note--teacher sticky-note--mini">
-          <div class="sticky-top">
-            <strong>${esc(e.student_name || 'Anonymous Student')}</strong>
-            <span>${esc(e.course)}</span>
-          </div>
-          <p class="creator-line">Created by: ${esc(e.student_name || 'Anonymous')}</p>
-          <p class="sticky-letter">${nl2br(e.letter)}</p>
-          ${e.updated_at ? `<p class="meta" style="margin-top:10px; padding-top:10px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 Last updated: ${esc(e.updated_at)}</p>` : ''}
-          <div class="sticky-actions">
-            <button class="btn btn--sm btn--ghost read-btn" data-idx="${i}">📖 Read Full</button>
-          </div>
-        </article>`).join('')}
-      </div>`;
+      panel.innerHTML = `<div class="letters-grid">${letters.map((e, i) => {
+        const dateStr = e.updated_at
+          ? new Date(e.updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+          : '';
+        return `
+          <article class="sticky-note sticky-note--teacher sticky-note--mini">
+            <div class="sticky-top">
+              <strong>${esc(e.student_name || 'Anonymous Student')}</strong>
+              <span>${esc(e.course)}</span>
+            </div>
+            <p class="creator-line">Created by: ${esc(e.student_name || 'Anonymous')}</p>
+            <p class="sticky-letter">${nl2br(e.letter)}</p>
+            ${dateStr ? `<p class="meta" style="margin-top:10px; padding-top:10px; border-top:1px dashed rgba(201,146,74,0.3);">🕐 Last updated: ${esc(dateStr)}</p>` : ''}
+            <div class="sticky-actions">
+              <button class="btn btn--sm btn--ghost read-btn" data-idx="${i}">📖 Read Full</button>
+            </div>
+          </article>`;
+      }).join('')}</div>`;
 
-      // Wire read buttons
-      const allLetters = letters;
       document.querySelectorAll('.read-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const entry = allLetters[parseInt(btn.dataset.idx)];
-          openReadModal(entry);
-        });
+        btn.addEventListener('click', () => openReadModal(letters[parseInt(btn.dataset.idx)]));
       });
     }
 
     function openReadModal(sub) {
-      document.getElementById('readName').textContent = sub.student_name || 'Anonymous Student';
-      document.getElementById('readCourse').textContent = sub.course;
+      const dateStr = sub.updated_at
+        ? new Date(sub.updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+        : '';
+      document.getElementById('readName').textContent      = sub.student_name || 'Anonymous Student';
+      document.getElementById('readCourse').textContent    = sub.course + (dateStr ? ' · ' + dateStr : '');
       document.getElementById('readCreatedBy').textContent = 'Written by: ' + (sub.student_name || 'Anonymous');
-      document.getElementById('readBody').innerHTML = nl2br(sub.letter);
+      document.getElementById('readBody').innerHTML        = nl2br(sub.letter);
       document.getElementById('readOverlay').classList.add('open');
       document.body.style.overflow = 'hidden';
+    }
+
+    function closeReadModal() {
+      document.getElementById('readOverlay').classList.remove('open');
+      document.body.style.overflow = '';
     }
 
     document.getElementById('closeReadModal').addEventListener('click', closeReadModal);
@@ -128,11 +138,6 @@
       if (e.target === document.getElementById('readOverlay')) closeReadModal();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeReadModal(); });
-
-    function closeReadModal() {
-      document.getElementById('readOverlay').classList.remove('open');
-      document.body.style.overflow = '';
-    }
 
     renderLetters();
   </script>
