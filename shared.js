@@ -1,72 +1,89 @@
-// ── Storage helpers ──────────────────────────────────────────
-const STORAGE_KEY = 'farewell_jenny_letters';
-const SESSION_KEY = 'farewell_jenny_session';
+// ── Supabase Config ──────────────────────────────────────────
+const SUPABASE_URL = 'https://aeagsfjuvyzrupwzesix.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlYWdzZmp1dnl6cnVwd3plc2l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzI5MDEsImV4cCI6MjA5MzcwODkwMX0.ia3dd5iyNFBL8xHZX6EkRFoBEvp531umjYAiqZsiNH4';
 
-function getAllSubmissions() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && Array.isArray(parsed.letters)) return parsed.letters;
-    return [];
-  } catch { return []; }
-}
+const db = {
+  headers: {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_ANON,
+    'Authorization': 'Bearer ' + SUPABASE_ANON,
+  },
 
-function saveAllSubmissions(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ letters: list }));
-}
+  async getAll() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/letters?select=*&order=updated_at.desc`, {
+      headers: this.headers
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  },
 
-function buildKey(name, course) {
-  return (name + '|' + course).toLowerCase().trim();
-}
+  async getByKey(name, course) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/letters?student_name=eq.${encodeURIComponent(name)}&course=eq.${encodeURIComponent(course)}&select=*&limit=1`,
+      { headers: this.headers }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null;
+  },
 
-function getSubmission(name, course) {
-  return getAllSubmissions().find(e => buildKey(e.student_name, e.course) === buildKey(name, course)) || null;
-}
+  async getByName(name) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/letters?student_name=ilike.${encodeURIComponent(name)}&select=*&limit=1`,
+      { headers: this.headers }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null;
+  },
 
-function upsertSubmission(name, course, letter) {
-  const all = getAllSubmissions();
-  const key = buildKey(name, course);
-  const now = new Date().toLocaleString('en-PH', { hour12: true });
-  const entry = { student_name: name.trim(), course: course.trim(), letter: letter.trim(), updated_at: now };
-  const idx = all.findIndex(e => buildKey(e.student_name, e.course) === key);
-  if (idx >= 0) all[idx] = entry; else all.unshift(entry);
-  saveAllSubmissions(all);
-}
+  async upsert(name, course, letter) {
+    const existing = await this.getByKey(name, course);
+    if (existing) {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/letters?student_name=eq.${encodeURIComponent(name)}&course=eq.${encodeURIComponent(course)}`,
+        {
+          method: 'PATCH',
+          headers: this.headers,
+          body: JSON.stringify({ letter, updated_at: new Date().toISOString() })
+        }
+      );
+      return res.ok;
+    } else {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/letters`, {
+        method: 'POST',
+        headers: { ...this.headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ student_name: name, course, letter })
+      });
+      return res.ok;
+    }
+  },
 
-function deleteSubmissionByKey(name, course) {
-  const all = getAllSubmissions().filter(e => buildKey(e.student_name, e.course) !== buildKey(name, course));
-  saveAllSubmissions(all);
-}
-
-function getOtherSubmissions(name, course) {
-  return getAllSubmissions().filter(e => buildKey(e.student_name, e.course) !== buildKey(name, course));
-}
-
-// ── Session helpers (localStorage so it survives tab close / reload) ─
-function getSession() {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
-}
-
-function setSession(role, name, course) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ role, name: name || '', course: course || '' }));
-}
-
-function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
-}
-
-// ── Auth ─────────────────────────────────────────────────────
-const CREDENTIALS = {
-  student: { username: 'student', password: 'stud123', role: 'student' },
-  teacher: { username: 'Jenny',   password: 'JennyGwapa', role: 'teacher' },
+  async delete(name, course) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/letters?student_name=eq.${encodeURIComponent(name)}&course=eq.${encodeURIComponent(course)}`,
+      { method: 'DELETE', headers: this.headers }
+    );
+    return res.ok;
+  }
 };
 
+// ── Session (localStorage so it survives tab close) ──────────
+const SESSION_KEY = 'farewell_jenny_session';
+function getSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; } }
+function setSession(role, name, course) { localStorage.setItem(SESSION_KEY, JSON.stringify({ role, name: name || '', course: course || '' })); }
+function clearSession() { localStorage.removeItem(SESSION_KEY); }
+
+// ── Profile (real name+course, persists across logout) ───────
+const PROFILE_KEY = 'farewell_jenny_profile';
+function getProfile() { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch { return null; } }
+function saveProfile(n, c) { localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: n, course: c })); }
+function clearProfile() { localStorage.removeItem(PROFILE_KEY); }
+
+// ── Auth ─────────────────────────────────────────────────────
 function authenticate(username, password) {
-  for (const c of Object.values(CREDENTIALS)) {
-    if (c.username === username && c.password === password) return c.role;
-  }
+  if (username === 'student' && password === 'stud123') return 'student';
+  if (username === 'Jenny'   && password === 'JennyGwapa') return 'teacher';
   return null;
 }
 
@@ -75,18 +92,8 @@ function redirectTo(path) { window.location.href = path; }
 
 function requireRole(role) {
   const s = getSession();
-  if (!s || s.role !== role) {
-    redirectTo('login.html');
-    return false;
-  }
+  if (!s || s.role !== role) { redirectTo('login.html'); return false; }
   return true;
-}
-
-function redirectIfLoggedIn() {
-  const s = getSession();
-  if (!s) return;
-  if (s.role === 'student') redirectTo('home.html');
-  if (s.role === 'teacher') redirectTo('teacher.html');
 }
 
 // ── Escape HTML ──────────────────────────────────────────────
@@ -95,7 +102,4 @@ function esc(v) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
-
-function nl2br(v) {
-  return esc(v).replace(/\n/g, '<br>');
-}
+function nl2br(v) { return esc(v).replace(/\n/g,'<br>'); }
